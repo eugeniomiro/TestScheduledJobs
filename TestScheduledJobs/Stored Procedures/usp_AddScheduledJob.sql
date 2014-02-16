@@ -1,11 +1,10 @@
 ﻿CREATE PROCEDURE [dbo].[usp_AddScheduledJob]
 (
     @ScheduledJobId INT OUT,
-    @JobScheduleId INT = -1,
-    @JobName NVARCHAR(256),
-    @ValidFrom DATETIME,
-    @NextRunOn DATETIME = NULL
-    
+    @JobName        NVARCHAR(256),
+    @ValidFrom      DATETIME,
+    @JobScheduleId  INT             = -1,
+    @NextRunOn      DATETIME        = NULL
 )
 AS
     IF @JobScheduleId > 0 AND @NextRunOn IS NOT NULL 
@@ -17,7 +16,7 @@ AS
         SELECT	-- get the valid from start time to calculate from 
                 @NextRunOn = CASE WHEN @ValidFrom > GETUTCDATE() THEN @ValidFrom ELSE GETUTCDATE() END, 
                 -- get next run time based on our valid from starting time
-                @NextRunOn = dbo.GetNextRunTime(@NextRunOn, @JobScheduleId)			
+                @NextRunOn = dbo.GetNextRunTime(@NextRunOn, @JobScheduleId)
     END
     
     IF @NextRunOn < GETUTCDATE()

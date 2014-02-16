@@ -3,31 +3,55 @@
     @ScheduledJobId INT
 )
 AS
-    IF NOT EXISTS (SELECT * FROM ScheduledJobSteps WHERE ScheduledJobId = @ScheduledJobId)
+    IF NOT EXISTS (SELECT ScheduledJobId 
+                    FROM ScheduledJobSteps 
+                    WHERE ScheduledJobId = @ScheduledJobId)
         RAISERROR ('Scheduled job ID %d has NO JOB STEPS.', 16, 1, @ScheduledJobId);
     
-    DECLARE @ScheduledJobStepId INT, @SqlToRun NVARCHAR(MAX), @RetryOnFail BIT, @RetryOnFailTimes INT
+    DECLARE @ScheduledJobStepId INT, 
+            @SqlToRun           NVARCHAR(MAX), 
+            @RetryOnFail        BIT, 
+            @RetryOnFailTimes   INT,
+            @numRows            INT,
+            @counter            INT
 
-    DECLARE JobStepsCursor CURSOR LOCAL FAST_FORWARD FOR
-    SELECT ID, SqlToRun, RetryOnFail, RetryOnFailTimes 
-    FROM ScheduledJobSteps 
-    WHERE ScheduledJobId = @ScheduledJobId
-    ORDER BY ID
+    DECLARE @thisRunData TABLE (
+        Id                  INT             NOT NULL PRIMARY KEY IDENTITY(1, 1), 
+        ScheduledJobStepId  INT,
+        SqlToRun            NVARCHAR(250), 
+        RetryOnFail         INT, 
+        RetryOnFailTimes    INT 
+    ) 
+    INSERT INTO @thisRunData
+        SELECT sjs.ID, SqlToRun, RetryOnFail, RetryOnFailTimes 
+            FROM ScheduledJobSteps sjs
+            WHERE ScheduledJobId = @ScheduledJobId
+            ORDER BY ID
 
-    OPEN JobStepsCursor
+    SET @numRows = @@ROWCOUNT
+    SET @counter = 0
 
-    FETCH NEXT FROM JobStepsCursor
-    INTO @ScheduledJobStepId, @SqlToRun, @RetryOnFail, @RetryOnFailTimes 
-
-    WHILE @@FETCH_STATUS = 0
+    WHILE @numRows > @counter
     BEGIN
-        DECLARE @repeats INT, @startTime DATETIME
-        SELECT @repeats = 0
+        SET @counter = @counter + 1;
+
+        SELECT @ScheduledJobStepId  = ScheduledJobStepId,
+               @SqlToRun            = SqlToRun,
+               @RetryOnFail         = RetryOnFail,
+               @RetryOnFailTimes    = RetryOnFailTimes
+            FROM @thisRunData
+            WHERE ID = @counter
+
+        DECLARE @repeats    INT, 
+                @startTime  DATETIME
+
+        SET @repeats = 0
+
         -- we first run the SQL. of the first run fails it is repeated @RetryOnFailTimes.
         -- so if @RetryOnFailTimes = 3 the the loop and statement will be run 4 times (1st + 3 repeats on fail)
         WHILE @repeats <= @RetryOnFailTimes 
         BEGIN
-            BEGIN TRY					
+            BEGIN TRY
                 SELECT @startTime = GETUTCDATE()
                 EXEC sp_executesql @SqlToRun
             END TRY
@@ -37,18 +61,12 @@ AS
                 SELECT N'usp_RunScheduledJobSteps', ERROR_LINE(), ERROR_NUMBER(), ERROR_MESSAGE(), ERROR_SEVERITY(), ERROR_STATE(), @ScheduledJobId, @ScheduledJobStepId	
                 -- if we don't want to retry on fail then exit loop
                 IF @RetryOnFail	= 0
-                    BREAK;					
-            END CATCH;			
+                    BREAK;
+            END CATCH;
             SELECT @repeats = @repeats + 1
         END
         UPDATE ScheduledJobSteps 
-        SET DurationInSeconds = DATEDIFF(ms, @startTime, GETUTCDATE())/1000.0,
-            FinishedOn = GETUTCDATE()
-        WHERE ID = @ScheduledJobStepId
-    
-        FETCH NEXT FROM JobStepsCursor
-        INTO @ScheduledJobStepId, @SqlToRun, @RetryOnFail, @RetryOnFailTimes
+            SET DurationInSeconds   = DATEDIFF(ms, @startTime, GETUTCDATE())/1000.0,
+                FinishedOn          = GETUTCDATE()
+            WHERE ID = @ScheduledJobStepId
     END
-    
-    CLOSE JobStepsCursor 
-    DEALLOCATE JobStepsCursor

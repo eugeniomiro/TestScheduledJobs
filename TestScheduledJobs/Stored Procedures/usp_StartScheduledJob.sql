@@ -49,9 +49,9 @@ AS
                 WITH ENCRYPTION = OFF;
         
             UPDATE	ScheduledJobs
-            SET		ConversationHandle = @ConversationHandle, 
-                    IsEnabled = 1
-            WHERE	ID = @ScheduledJobId		
+            SET		ConversationHandle  = @ConversationHandle, 
+                    IsEnabled           = 1
+            WHERE	ID = @ScheduledJobId
         END
     
         -- get next run time in seconds. DATEADD(ms, -DATEPART(ms, GETUTCDATE()), GETUTCDATE()) gets utc without miliseconds
@@ -64,14 +64,14 @@ AS
 
         -- update the NextRunOn for the job
         UPDATE	ScheduledJobs
-        SET		NextRunOn = @NextRunOn				
+        SET		NextRunOn = @NextRunOn
         WHERE	ID = @ScheduledJobId
                 
         IF @@TRANCOUNT > 0
             COMMIT;
     END TRY
     BEGIN CATCH
-        IF @@TRANCOUNT > 0			
+        IF @@TRANCOUNT > 0
             ROLLBACK;
         
         DECLARE @ErrorMessage NVARCHAR(2048), @ErrorSeverity INT, @ErrorState INT

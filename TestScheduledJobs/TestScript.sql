@@ -1,5 +1,4 @@
-﻿
-DECLARE @JobScheduleId INT, @ScheduledJobId INT, @validFrom DATETIME, @ScheduledJobStepId INT, @secondsOffset INT, @NextRunOn DATETIME
+﻿DECLARE @JobScheduleId INT, @ScheduledJobId INT, @validFrom DATETIME, @ScheduledJobStepId INT, @secondsOffset INT, @NextRunOn DATETIME
 SELECT	@validFrom = GETUTCDATE(), -- the job is valid from current UTC time
          -- run the job 2 minutes after the validFrom time. 
          -- we need the offset in seconds from midnight of that day for all jobs
@@ -8,7 +7,7 @@ SELECT	@validFrom = GETUTCDATE(), -- the job is valid from current UTC time
 
 -- SIMPLE RUN ONCE SCHEDULING EXAMPLE
 -- add new "run once" scheduled job 
-EXEC usp_AddScheduledJob @ScheduledJobId OUT, -1, 'test job', @validFrom, @NextRunOn
+EXEC usp_AddScheduledJob @ScheduledJobId OUT, 'test job', @validFrom, -1, @NextRunOn
 -- add just one simple step for our job
 EXEC usp_AddScheduledJobStep @ScheduledJobStepId OUT, @ScheduledJobId, 'EXEC sp_updatestats', 'step 1'
 -- start the scheduled job
@@ -18,10 +17,9 @@ EXEC usp_StartScheduledJob @ScheduledJobId
 -- run the job daily
 EXEC usp_AddJobSchedule @JobScheduleId OUT,
                         @RunAtInSecondsFromMidnight = @secondsOffset,
-                        @FrequencyType = 1,
-                        @Frequency = 1 -- run every day                      
+                        @FrequencyType = 1  -- run every day                      
 -- add new scheduled job 
-EXEC usp_AddScheduledJob @ScheduledJobId OUT, @JobScheduleId, 'test job', @validFrom
+EXEC usp_AddScheduledJob @ScheduledJobId OUT, 'test job', @validFrom, @JobScheduleId
 DECLARE @backupSQL NVARCHAR(MAX)
 SELECT  @backupSQL = N'DECLARE @backupTime DATETIME, @backupFile NVARCHAR(512); 
                           SELECT @backupTime = GETDATE(), 
@@ -42,7 +40,7 @@ EXEC usp_AddJobSchedule @JobScheduleId OUT,
                         @Frequency = 2, -- run every every 2 weeks,
                         @AbsoluteSubFrequency = '2,3,5,7' -- run every Tuesday(2), Wednesday(3), Friday(5) and Sunday(7)	
 -- add new scheduled job 
-EXEC usp_AddScheduledJob @ScheduledJobId OUT, @JobScheduleId, 'test job', @validFrom
+EXEC usp_AddScheduledJob @ScheduledJobId OUT, 'test job', @validFrom, @JobScheduleId
 -- add three steps for our job
 EXEC usp_AddScheduledJobStep @ScheduledJobStepId OUT, @ScheduledJobId, 'EXEC sp_updatestats', 'step 1'
 EXEC usp_AddScheduledJobStep @ScheduledJobStepId OUT, @ScheduledJobId, 'DBCC CHECKDB', 'step 2'
@@ -75,7 +73,7 @@ the second wedensday of the month:
   - @MontlyRelativeSubFrequencyWhich = 2, @MontlyRelativeSubFrequencyWhat = 3
 */
 -- add new scheduled job 
-EXEC usp_AddScheduledJob @ScheduledJobId OUT, @JobScheduleId, 'test job', @validFrom
+EXEC usp_AddScheduledJob @ScheduledJobId OUT, 'test job', @validFrom, @JobScheduleId
 -- add just one simple step for our job
 EXEC usp_AddScheduledJobStep @ScheduledJobStepId OUT, @ScheduledJobId, 'EXEC sp_updatestats', 'step 1'
 -- start the scheduled job

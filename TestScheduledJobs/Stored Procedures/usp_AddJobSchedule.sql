@@ -6,7 +6,7 @@
     @Frequency INT = 1,
     @AbsoluteSubFrequency VARCHAR(100) = NULL,
     @MontlyRelativeSubFrequencyWhich INT = NULL, 
-    @MontlyRelativeSubFrequencyWhat INT = NULL 		
+    @MontlyRelativeSubFrequencyWhat INT = NULL
 )
 AS
     SELECT @JobScheduleId = -1
