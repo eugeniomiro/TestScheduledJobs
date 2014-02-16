@@ -1,4 +1,4 @@
-﻿CREATE PROCEDURE [dbo].[usp_AddScueduledJobStep]
+﻿CREATE PROCEDURE [dbo].[usp_AddScheduledJobStep]
 (	
     @ScheduledJobStepId INT OUT,	
     @ScheduledJobId INT, 

@@ -78,7 +78,7 @@
     <Build Include="Functions\F_ISO_WEEK_OF_YEAR.sql" />
     <Build Include="Functions\F_TABLE_DATE.sql" />
     <Build Include="Stored Procedures\usp_RemoveJobSchedule.sql" />
-    <Build Include="Stored Procedures\usp_AddScueduledJobStep.sql" />
+    <Build Include="Stored Procedures\usp_AddScheduledJobStep.sql" />
     <Build Include="Stored Procedures\usp_RemoveScheduledJobStep.sql" />
     <Build Include="Stored Procedures\usp_StartScheduledJob.sql" />
     <Build Include="Stored Procedures\usp_StopScheduledJob.sql" />
