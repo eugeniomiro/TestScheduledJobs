@@ -1,0 +1,4 @@
+TestScheduledJobs/bin/
+TestScheduledJobs/obj/
+*.user
+*.suo
