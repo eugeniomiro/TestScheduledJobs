@@ -66,11 +66,14 @@
   <ItemGroup>
     <Build Include="Tables\ScheduledJobs.sql" />
     <Build Include="Tables\ScheduledJobsErrors.sql" />
-    <Build Include="StoredProcedures\usp_RemoveScheduledJob.sql" />
-    <Build Include="StoredProcedures\usp_AddScheduledJob.sql" />
-    <Build Include="StoredProcedures\usp_RunScheduledJob.sql" />
+    <Build Include="Stored Procedures\usp_RemoveScheduledJob.sql" />
+    <Build Include="Stored Procedures\usp_AddScheduledJob.sql" />
+    <Build Include="Stored Procedures\usp_RunScheduledJob.sql" />
     <Build Include="Service Broker\ScheduledJobService.sql" />
     <Build Include="Service Broker\ScheduledJobQueue.sql" />
     <Build Include="Service Broker\ScheduledJobContract.sql" />
+  <ItemGroup>
+    <None Include="Original Part 2.sql" />
+    <None Include="TestScript.sql" />
   </ItemGroup>
 </Project>
