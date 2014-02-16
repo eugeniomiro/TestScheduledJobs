@@ -1,49 +1,30 @@
-﻿CREATE PROC usp_AddScheduledJob
+﻿CREATE PROCEDURE [dbo].[usp_AddScheduledJob]
 (
-	@ScheduledSql NVARCHAR(MAX), 
-	@FirstRunOn DATETIME, 
-	@IsRepeatable BIT	
+    @ScheduledJobId INT OUT,
+    @JobScheduleId INT = -1,
+    @JobName NVARCHAR(256),
+    @ValidFrom DATETIME,
+    @NextRunOn DATETIME = NULL
+    
 )
 AS
-	DECLARE @ScheduledJobId INT, @TimeoutInSeconds INT, @ConversationHandle UNIQUEIDENTIFIER	
-	BEGIN TRANSACTION
-	BEGIN TRY
-		-- add job to our table
-		INSERT INTO ScheduledJobs(ScheduledSql, FirstRunOn, IsRepeatable, ConversationHandle)
-		VALUES (@ScheduledSql, @FirstRunOn, @IsRepeatable, NULL)
-		SELECT @ScheduledJobId = SCOPE_IDENTITY()
-		
-		-- set the timeout. It's in seconds so we need the datediff
-		SELECT @TimeoutInSeconds = DATEDIFF(s, GETDATE(), @FirstRunOn);
-		-- begin a conversation for our scheduled job
-		BEGIN DIALOG CONVERSATION @ConversationHandle
-			FROM SERVICE   [//ScheduledJobService]
-			TO SERVICE      '//ScheduledJobService', 
-							'CURRENT DATABASE'
-			ON CONTRACT     [//ScheduledJobContract]
-			WITH ENCRYPTION = OFF;
+    IF @JobScheduleId > 0 AND @NextRunOn IS NOT NULL 
+        RAISERROR ('Job Schedule can NOT be set for "Run Once" job types. "Run Once" job type is indicated by setting parameters @NextRunOn to a future date and @JobScheduleId to -1 (default value).', 16, 1); 
+    
+    IF @NextRunOn IS NULL 
+    -- calculate the next run time from job schedule
+    BEGIN		
+        SELECT	-- get the valid from start time to calculate from 
+                @NextRunOn = CASE WHEN @ValidFrom > GETUTCDATE() THEN @ValidFrom ELSE GETUTCDATE() END, 
+                -- get next run time based on our valid from starting time
+                @NextRunOn = dbo.GetNextRunTime(@NextRunOn, @JobScheduleId)			
+    END
+    
+    IF @NextRunOn < GETUTCDATE()
+        RAISERROR ('@NextRunOn parameter has to be in the future in the UTC date format.', 16, 1); 
 
-		-- start the conversation timer
-		BEGIN CONVERSATION TIMER (@ConversationHandle)
-		TIMEOUT = @TimeoutInSeconds;
-		-- associate or scheduled job with the conversation via the Conversation Handle
-		UPDATE	ScheduledJobs
-		SET		ConversationHandle = @ConversationHandle, 
-				IsEnabled = 1
-		WHERE	ID = @ScheduledJobId 
-		IF @@TRANCOUNT > 0
-		BEGIN 
-			COMMIT;
-		END
-	END TRY
-	BEGIN CATCH
-		IF @@TRANCOUNT > 0
-		BEGIN 
-			ROLLBACK;
-		END
-		INSERT INTO ScheduledJobsErrors (
-				ErrorLine, ErrorNumber, ErrorMessage, 
-				ErrorSeverity, ErrorState, ScheduledJobId)
-		SELECT	ERROR_LINE(), ERROR_NUMBER(), 'usp_AddScheduledJob: ' + ERROR_MESSAGE(), 
-				ERROR_SEVERITY(), ERROR_STATE(), @ScheduledJobId
-	END CATCH
+    
+    INSERT INTO ScheduledJobs(JobScheduleId, JobName, ValidFrom, NextRunOn)
+    VALUES (@JobScheduleId, @JobName, @ValidFrom, @NextRunOn)
+    
+    SELECT @ScheduledJobId = SCOPE_IDENTITY()

@@ -25,6 +25,7 @@
     <TargetDatabaseSet>True</TargetDatabaseSet>
     <ServiceBrokerOption>EnableBroker</ServiceBrokerOption>
     <VardecimalStorageFormatOn>True</VardecimalStorageFormatOn>
+    <Trustworthy>True</Trustworthy>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <OutputPath>bin\Release\</OutputPath>
@@ -60,20 +61,33 @@
   <ItemGroup>
     <Folder Include="Properties" />
     <Folder Include="Tables" />
-    <Folder Include="StoredProcedures" />
+    <Folder Include="Stored Procedures" />
     <Folder Include="Service Broker" />
+    <Folder Include="Functions" />
   </ItemGroup>
   <ItemGroup>
     <Build Include="Tables\ScheduledJobs.sql" />
-    <Build Include="Tables\ScheduledJobsErrors.sql" />
+    <Build Include="Tables\SchedulingErrors.sql" />
     <Build Include="Stored Procedures\usp_RemoveScheduledJob.sql" />
     <Build Include="Stored Procedures\usp_AddScheduledJob.sql" />
     <Build Include="Stored Procedures\usp_RunScheduledJob.sql" />
     <Build Include="Service Broker\ScheduledJobService.sql" />
     <Build Include="Service Broker\ScheduledJobQueue.sql" />
     <Build Include="Service Broker\ScheduledJobContract.sql" />
+    <Build Include="Stored Procedures\usp_AddJobSchedule.sql" />
+    <Build Include="Functions\F_ISO_WEEK_OF_YEAR.sql" />
+    <Build Include="Functions\F_TABLE_DATE.sql" />
+    <Build Include="Stored Procedures\usp_RemoveJobSchedule.sql" />
+    <Build Include="Stored Procedures\usp_AddScueduledJobStep.sql" />
+    <Build Include="Stored Procedures\usp_RemoveScheduledJobStep.sql" />
+    <Build Include="Stored Procedures\usp_StartScheduledJob.sql" />
+    <Build Include="Stored Procedures\usp_StopScheduledJob.sql" />
+    <Build Include="Stored Procedures\usp_RunScheduledJobSteps.sql" />
+    <Build Include="Functions\GetNextRunTime.sql" />
+    <Build Include="Tables\ScheduledJobSteps.sql" />
+    <Build Include="Tables\JobSchedules.sql" />
+  </ItemGroup>
   <ItemGroup>
-    <None Include="Original Part 2.sql" />
     <None Include="TestScript.sql" />
   </ItemGroup>
 </Project>

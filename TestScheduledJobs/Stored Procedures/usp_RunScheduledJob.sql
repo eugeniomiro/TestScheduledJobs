@@ -1,67 +1,64 @@
-﻿CREATE PROC usp_RunScheduledJob
+﻿CREATE PROCEDURE [dbo].[usp_RunScheduledJob]
 AS
-	DECLARE @ConversationHandle UNIQUEIDENTIFIER, @ScheduledJobId INT, @LastRunOn DATETIME, @IsEnabled BIT, @LastRunOK BIT
-	
-	SELECT	@LastRunOn = GETDATE(), @IsEnabled = 0, @LastRunOK = 0
-	-- we don't need transactions since we don't want to put the job back in the queue if it fails
-	BEGIN TRY
-		DECLARE @message_type_name sysname;			
-		-- receive only one message from the queue
-		RECEIVE TOP(1) 
-			    @ConversationHandle = conversation_handle,
-			    @message_type_name = message_type_name
-		FROM ScheduledJobQueue
-	
-		-- exit if no message or other type of message than DialgTimer 
-		IF @@ROWCOUNT = 0 OR ISNULL(@message_type_name, '') != 'http://schemas.microsoft.com/SQL/ServiceBroker/DialogTimer'
-			RETURN;
-		
-		DECLARE @ScheduledSql NVARCHAR(MAX), @IsRepeatable BIT				
-		-- get a scheduled job that is enabled and is associated with our conversation handle.
-		-- if a job fails we disable it by setting IsEnabled to 0
-		SELECT	@ScheduledJobId = ID, @ScheduledSql = ScheduledSql, @IsRepeatable = IsRepeatable
-		FROM	ScheduledJobs 
-		WHERE	ConversationHandle = @ConversationHandle AND IsEnabled = 1
-					
-		-- end the conversation if it's non repeatable
-		IF @IsRepeatable = 0
-		BEGIN			
-			END CONVERSATION @ConversationHandle
-			SELECT @IsEnabled = 0
-		END
-		ELSE
-		BEGIN 
-			-- reset the timer to fire again in one day
-			BEGIN CONVERSATION TIMER (@ConversationHandle)
-				TIMEOUT = 86400; -- 60*60*24 secs = 1 DAY
-			SELECT @IsEnabled = 1
-		END
+    DECLARE @ConversationHandle UNIQUEIDENTIFIER, 
+            @ScheduledJobId INT, @ScheduledJobStepId INT, @JobScheduleId INT, 
+            @LastRunOn DATETIME, @NextRunOn DATETIME, @ValidFrom DATETIME
+    
+    -- we don't need transactions since we don't want to put the job back in the queue if it fails
+    -- if that's desired transactions could be added but extra error checking would have to added
+    BEGIN TRY
+        -- receive only one message from the queue
+        ;RECEIVE TOP(1) @ConversationHandle = conversation_handle FROM ScheduledJobQueue
+    
+        -- exit if no message in the queue
+        IF @@ROWCOUNT = 0
+            RETURN;
 
-		-- run our job
-		EXEC (@ScheduledSql)
-		
-		SELECT @LastRunOK = 1
-	END TRY
-	BEGIN CATCH		
-		SELECT @IsEnabled = 0
-		
-		INSERT INTO ScheduledJobsErrors (
-				ErrorLine, ErrorNumber, ErrorMessage, 
-				ErrorSeverity, ErrorState, ScheduledJobId)
-		SELECT	ERROR_LINE(), ERROR_NUMBER(), 'usp_RunScheduledJob: ' + ERROR_MESSAGE(), 
-				ERROR_SEVERITY(), ERROR_STATE(), @ScheduledJobId
-		
-		-- if an error happens end our conversation if it exists
-		IF @ConversationHandle != NULL		
-		BEGIN
-			IF EXISTS (SELECT * FROM sys.conversation_endpoints WHERE conversation_handle = @ConversationHandle)
-				END CONVERSATION @ConversationHandle
-		END
-			
-	END CATCH;
-	-- update the job status
-	UPDATE	ScheduledJobs
-	SET		LastRunOn = @LastRunOn,
-			IsEnabled = @IsEnabled,
-			LastRunOK = @LastRunOK
-	WHERE	ID = @ScheduledJobId
+        -- get id of the scheduled job associated with the currently received conversation handle
+        SELECT	@ScheduledJobId = SJ.ID, @JobScheduleId = JobScheduleId, @ValidFrom = ValidFrom
+        FROM	ScheduledJobs SJ
+        WHERE	ConversationHandle = @ConversationHandle AND IsEnabled = 1
+
+        IF @@ROWCOUNT = 0
+        BEGIN 
+            DECLARE @ConversationHandleString VARCHAR(36)
+            SELECT @ConversationHandleString = @ConversationHandle 
+            RAISERROR ('Scheduled job for conversation handle "%s" does NOT EXISTS or is NOT ENABLED.', 16, 1, @ConversationHandleString);
+        END
+
+        -- get the true time the job started executing
+        SELECT	@LastRunOn = GETUTCDATE() 
+        
+        EXEC usp_RunScheduledJobSteps @ScheduledJobId
+
+        IF @JobScheduleId = -1
+        BEGIN
+            -- if it's "run once" job, stop it
+            EXEC usp_StopScheduledJob @ScheduledJobId
+            SELECT @NextRunOn = NULL
+        END
+        ELSE
+        BEGIN
+            -- else restart the job to the next scheduled date
+            EXEC usp_StartScheduledJob @ScheduledJobId, @ConversationHandle
+
+            SELECT	-- get the valid from start time to calculate from 
+                    @NextRunOn = CASE WHEN @ValidFrom > GETUTCDATE() THEN @ValidFrom ELSE GETUTCDATE() END, 
+                    -- get next run time based on our valid from starting time
+                    @NextRunOn = dbo.GetNextRunTime(@NextRunOn, @JobScheduleId)
+        END
+        -- update the job Last run time.
+        UPDATE	ScheduledJobs
+        SET		LastRunOn = @LastRunOn,
+                NextRunOn = @NextRunOn
+        WHERE	ID = @ScheduledJobId		
+        
+    END TRY
+    BEGIN CATCH
+        INSERT INTO SchedulingErrors (ErrorProcedure, ErrorLine, ErrorNumber, ErrorMessage, ErrorSeverity, ErrorState, ScheduledJobId, ScheduledJobStepId)
+        SELECT N'usp_RunScheduledJob', ERROR_LINE(), ERROR_NUMBER(), ERROR_MESSAGE(), ERROR_SEVERITY(), ERROR_STATE(), @ScheduledJobId, @ScheduledJobStepId	
+        
+        -- if an error happens end our conversation if it exists
+        IF @ScheduledJobId IS NOT NULL
+            EXEC usp_StopScheduledJob @ScheduledJobId
+    END CATCH;	
