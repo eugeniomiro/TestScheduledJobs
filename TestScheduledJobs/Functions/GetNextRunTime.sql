@@ -6,33 +6,43 @@
 RETURNS DATETIME
 AS
 BEGIN
-    DECLARE @NextRunTime DATETIME,
-            @FrequencyType INT, @Frequency INT, @AbsoluteSubFrequency VARCHAR(100), 
-            @MontlyRelativeSubFrequencyWhich INT, @MontlyRelativeSubFrequencyWhat INT, @RunAtInSecondsFromMidnight INT,
-            @StartIntervalDate DATETIME, @EndIntervalDate DATETIME,		
-            @LastRunTimeDayOfYear INT, @LastRunTimeMonth INT, @LastRunTimeISOWeek INT
+    DECLARE @NextRunTime                        DATETIME,
+            @FrequencyType                      INT, 
+            @Frequency                          INT, 
+            @AbsoluteSubFrequency               VARCHAR(100), 
+            @MontlyRelativeSubFrequencyWhich    INT, 
+            @MontlyRelativeSubFrequencyWhat     INT, 
+            @RunAtInSecondsFromMidnight         INT,
+            @StartIntervalDate                  DATETIME, 
+            @EndIntervalDate                    DATETIME,
+            @LastRunTimeDayOfYear               INT, 
+            @LastRunTimeMonth                   INT, 
+            @LastRunTimeISOWeek                 INT
 
     -- get required job schedule data
-    SELECT	@FrequencyType = FrequencyType, @Frequency = Frequency, @AbsoluteSubFrequency = AbsoluteSubFrequency, 
-            @MontlyRelativeSubFrequencyWhich = MontlyRelativeSubFrequencyWhich, @MontlyRelativeSubFrequencyWhat = MontlyRelativeSubFrequencyWhat, 
-            @RunAtInSecondsFromMidnight = RunAtInSecondsFromMidnight 
+    SELECT	@FrequencyType                      = FrequencyType, 
+            @Frequency                          = Frequency, 
+            @AbsoluteSubFrequency               = AbsoluteSubFrequency, 
+            @MontlyRelativeSubFrequencyWhich    = MontlyRelativeSubFrequencyWhich, 
+            @MontlyRelativeSubFrequencyWhat     = MontlyRelativeSubFrequencyWhat, 
+            @RunAtInSecondsFromMidnight         = RunAtInSecondsFromMidnight 
     FROM	JobSchedules
     WHERE	id = @JobScheduleId
 
     -- no schedule found so return the input date
     IF @@ROWCOUNT = 0
     BEGIN
-        RETURN @LastRunTime;		
+        RETURN @LastRunTime;
     END 
 
     SELECT	-- set the interval start to the first of the month
-            @startIntervalDate = DATEADD(m, DATEDIFF(m, 0, @LastRunTime), 0),
+            @startIntervalDate      = DATEADD(m, DATEDIFF(m, 0, @LastRunTime), 0),
             -- set the interval end to 2 times frequency in months in the future
-            @endIntervalDate = DATEADD(m, 2*@Frequency, @startIntervalDate),
+            @endIntervalDate        = DATEADD(m, 2*@Frequency, @startIntervalDate),
             -- get ISO week of the year for the last run time
-            @LastRunTimeISOWeek = dbo.F_ISO_WEEK_OF_YEAR(@LastRunTime),
-            @LastRunTimeMonth = MONTH(@LastRunTime),
-            @LastRunTimeDayOfYear = DATEPART(dy, @LastRunTime)
+            @LastRunTimeISOWeek     = dbo.F_ISO_WEEK_OF_YEAR(@LastRunTime),
+            @LastRunTimeMonth       = MONTH(@LastRunTime),
+            @LastRunTimeDayOfYear   = DATEPART(dy, @LastRunTime)
 
     -- DAILY SCHEDULE TYPE
     IF @FrequencyType = 1
@@ -56,12 +66,12 @@ BEGIN
                 JOIN
                 (	-- split our CSV into table to join to
                     SELECT DISTINCT
-                            CONVERT(INT, SUBSTRING(@AbsoluteSubFrequency, V1.number+1, CHARINDEX(',', @AbsoluteSubFrequency, V1.number+1) - V1.number - 1)) AS D
+                            CONVERT(INT, SUBSTRING(@AbsoluteSubFrequency, V1.number + 1, CHARINDEX(',', @AbsoluteSubFrequency, V1.number + 1) - V1.number - 1)) AS D
                     FROM	master..spt_values V1
                     WHERE	V1.number  < LEN(@AbsoluteSubFrequency)
                             AND SUBSTRING(@AbsoluteSubFrequency, V1.number, 1) = ','
                 ) T ON T.D = DT.ISO_DAY_OF_WEEK
-        WHERE	DATEADD(s, @RunAtInSecondsFromMidnight, DT.DATE) > @LastRunTime 
+        WHERE   DATEADD(s, @RunAtInSecondsFromMidnight, DT.DATE) > @LastRunTime 
                 AND (DT.ISO_WEEK_NO - @LastRunTimeISOWeek) % @Frequency = 0 -- select only weeks that match our frequency
         ORDER BY DT.DATE
     END
